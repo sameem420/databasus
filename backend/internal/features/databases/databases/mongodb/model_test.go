@@ -836,3 +836,44 @@ func Test_BuildMongodumpURI_WhenSrvAndIsHttpsFalse_ContainsTlsFalse(t *testing.T
 	assert.NotContains(t, uri, "tls=true")
 	assert.NotContains(t, uri, "tlsInsecure")
 }
+
+func Test_MapMongodbVersion_VersionMatrix_ReturnsExpected(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name        string
+		major       string
+		minor       string
+		wantErr     bool
+		wantVersion tools.MongodbVersion
+		errContains string
+	}{
+		{"3.6 rejected", "3", "6", true, "", "supported: 4.2+"},
+		{"4.0 rejected", "4", "0", true, "", "minimum supported: 4.2"},
+		{"4.1 rejected", "4", "1", true, "", "minimum supported: 4.2"},
+		{"4.2 supported", "4", "2", false, tools.MongodbVersion4, ""},
+		{"4.4 supported", "4", "4", false, tools.MongodbVersion4, ""},
+		{"5.0 supported", "5", "0", false, tools.MongodbVersion5, ""},
+		{"6.0 supported", "6", "0", false, tools.MongodbVersion6, ""},
+		{"7.0 supported", "7", "0", false, tools.MongodbVersion7, ""},
+		{"8.0 supported", "8", "0", false, tools.MongodbVersion8, ""},
+		{"9.0 rejected", "9", "0", true, "", "supported: 4.2+"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := mapMongodbVersion(tc.major, tc.minor)
+
+			if tc.wantErr {
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), tc.errContains)
+				return
+			}
+
+			assert.NoError(t, err)
+			assert.Equal(t, tc.wantVersion, got)
+		})
+	}
+}

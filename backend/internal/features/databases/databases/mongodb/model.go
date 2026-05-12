@@ -615,16 +615,28 @@ func detectMongodbVersion(ctx context.Context, client *mongo.Client) (tools.Mong
 		return "", errors.New("could not parse MongoDB version from buildInfo")
 	}
 
-	re := regexp.MustCompile(`^(\d+)\.`)
+	re := regexp.MustCompile(`^(\d+)\.(\d+)`)
 	matches := re.FindStringSubmatch(versionStr)
-	if len(matches) < 2 {
+	if len(matches) < 3 {
 		return "", fmt.Errorf("could not parse MongoDB version: %s", versionStr)
 	}
 
-	major := matches[1]
+	return mapMongodbVersion(matches[1], matches[2])
+}
 
+// mapMongodbVersion validates a parsed major.minor against the supported
+// matrix. The bundled MongoDB Database Tools (100.16.1) drop wire-protocol
+// v7, so the minimum supported server version is 4.2 — matching
+// assets/tools/README.md.
+func mapMongodbVersion(major, minor string) (tools.MongodbVersion, error) {
 	switch major {
 	case "4":
+		if minor == "0" || minor == "1" {
+			return "", fmt.Errorf(
+				"unsupported MongoDB version: %s.%s (minimum supported: 4.2)",
+				major, minor,
+			)
+		}
 		return tools.MongodbVersion4, nil
 	case "5":
 		return tools.MongodbVersion5, nil
@@ -636,8 +648,8 @@ func detectMongodbVersion(ctx context.Context, client *mongo.Client) (tools.Mong
 		return tools.MongodbVersion8, nil
 	default:
 		return "", fmt.Errorf(
-			"unsupported MongoDB major version: %s (supported: 4.x, 5.x, 6.x, 7.x, 8.x)",
-			major,
+			"unsupported MongoDB version: %s.%s (supported: 4.2+, 5.x, 6.x, 7.x, 8.x)",
+			major, minor,
 		)
 	}
 }

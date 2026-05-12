@@ -539,6 +539,22 @@ services:
       retries: 10
 
   # Test MongoDB containers
+  test-mongodb-40:
+    image: mongo:4.0
+    container_name: test-mongodb-40
+    ports:
+      - "${TEST_MONGODB_40_PORT}:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: rootpassword
+      MONGO_INITDB_DATABASE: testdb
+    command: mongod --auth
+    healthcheck:
+      test: ["CMD", "mongo", "--eval", "db.adminCommand('ping')"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
   test-mongodb-42:
     image: mongo:4.2
     container_name: test-mongodb-42
