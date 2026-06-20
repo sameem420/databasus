@@ -173,3 +173,28 @@ func Test_MaskSensitive_WhenEmpty_ReturnsNotSet(t *testing.T) {
 func Test_MaskSensitive_WhenValue_RevealsQuarterThenMasks(t *testing.T) {
 	assert.Equal(t, "ab***", maskSensitive("abcdefgh"))
 }
+
+func Test_GetVerificationPgImageRepo_WhenUnset_ReturnsBundledDefault(t *testing.T) {
+	cfg := &Config{}
+
+	assert.Equal(t, DefaultVerificationPgImageRepo, cfg.GetVerificationPgImageRepo())
+}
+
+func Test_GetVerificationPgImageRepo_WhenSet_ReturnsConfiguredValue(t *testing.T) {
+	cfg := &Config{VerificationPgImageRepo: "registry.internal/pg-verify"}
+
+	assert.Equal(t, "registry.internal/pg-verify", cfg.GetVerificationPgImageRepo())
+}
+
+func Test_ApplyFlags_WhenImageRepoFlagSet_OverridesFileValue(t *testing.T) {
+	cfg := &Config{VerificationPgImageRepo: "from-file"}
+	cfg.initSources()
+
+	flagValue := "from-flag"
+	cfg.flags.verificationPgImageRepo = &flagValue
+
+	cfg.applyFlags()
+
+	assert.Equal(t, "from-flag", cfg.VerificationPgImageRepo)
+	assert.Equal(t, "command line args", cfg.flags.sources["verification-pg-image-repo"])
+}

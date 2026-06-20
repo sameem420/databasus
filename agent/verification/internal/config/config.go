@@ -18,17 +18,31 @@ const configFileName = "databasus-verification.json"
 
 const minRAMMbPerJob = 512
 
+// DefaultVerificationPgImageRepo bundles common extensions so a dump's CREATE
+// EXTENSION statements succeed during verification; override via
+// verificationPgImageRepo (e.g. a private registry, or "postgres" for stock).
+const DefaultVerificationPgImageRepo = "databasus/verification-postgres"
+
 type Config struct {
-	DatabasusHost     string `json:"databasusHost"`
-	AgentID           string `json:"agentId"`
-	Token             string `json:"token"`
-	MaxCPU            int    `json:"maxCpu"`
-	MaxRAMMb          int    `json:"maxRamMb"`
-	MaxDiskGb         int    `json:"maxDiskGb"`
-	MaxConcurrentJobs int    `json:"maxConcurrentJobs"`
-	AllowInsecureHTTP bool   `json:"allowInsecureHttp"`
+	DatabasusHost           string `json:"databasusHost"`
+	AgentID                 string `json:"agentId"`
+	Token                   string `json:"token"`
+	MaxCPU                  int    `json:"maxCpu"`
+	MaxRAMMb                int    `json:"maxRamMb"`
+	MaxDiskGb               int    `json:"maxDiskGb"`
+	MaxConcurrentJobs       int    `json:"maxConcurrentJobs"`
+	AllowInsecureHTTP       bool   `json:"allowInsecureHttp"`
+	VerificationPgImageRepo string `json:"verificationPgImageRepo"`
 
 	flags parsedFlags
+}
+
+func (c *Config) GetVerificationPgImageRepo() string {
+	if c.VerificationPgImageRepo == "" {
+		return DefaultVerificationPgImageRepo
+	}
+
+	return c.VerificationPgImageRepo
 }
 
 type Capacity struct {
@@ -62,6 +76,12 @@ func (c *Config) LoadFromJSONAndArgs(fs *flag.FlagSet, args []string) {
 		"allow-insecure-http",
 		false,
 		"Permit a plain http:// databasus-host (token and backup data sent unencrypted)",
+	)
+	c.flags.verificationPgImageRepo = fs.String(
+		"verification-pg-image-repo",
+		"",
+		"Container image repo bundling PostgreSQL extensions for verification "+
+			"(default "+DefaultVerificationPgImageRepo+"; set to 'postgres' for the stock image)",
 	)
 
 	if err := fs.Parse(args); err != nil {
@@ -199,14 +219,15 @@ func (c *Config) loadFromJSON() {
 
 func (c *Config) initSources() {
 	c.flags.sources = map[string]string{
-		"databasus-host":      "not configured",
-		"agent-id":            "not configured",
-		"token":               "not configured",
-		"max-cpu":             "not configured",
-		"max-ram-mb":          "not configured",
-		"max-disk-gb":         "not configured",
-		"max-concurrent-jobs": "not configured",
-		"allow-insecure-http": "not configured",
+		"databasus-host":             "not configured",
+		"agent-id":                   "not configured",
+		"token":                      "not configured",
+		"max-cpu":                    "not configured",
+		"max-ram-mb":                 "not configured",
+		"max-disk-gb":                "not configured",
+		"max-concurrent-jobs":        "not configured",
+		"allow-insecure-http":        "not configured",
+		"verification-pg-image-repo": "not configured",
 	}
 
 	if c.DatabasusHost != "" {
@@ -239,6 +260,10 @@ func (c *Config) initSources() {
 
 	if c.AllowInsecureHTTP {
 		c.flags.sources["allow-insecure-http"] = configFileName
+	}
+
+	if c.VerificationPgImageRepo != "" {
+		c.flags.sources["verification-pg-image-repo"] = configFileName
 	}
 }
 
@@ -285,6 +310,11 @@ func (c *Config) applyFlags() {
 		c.AllowInsecureHTTP = true
 		c.flags.sources["allow-insecure-http"] = "command line args"
 	}
+
+	if c.flags.verificationPgImageRepo != nil && *c.flags.verificationPgImageRepo != "" {
+		c.VerificationPgImageRepo = *c.flags.verificationPgImageRepo
+		c.flags.sources["verification-pg-image-repo"] = "command line args"
+	}
 }
 
 func (c *Config) logConfigSources() {
@@ -307,6 +337,13 @@ func (c *Config) logConfigSources() {
 		fmt.Sprintf("%v", c.AllowInsecureHTTP),
 		"source",
 		c.flags.sources["allow-insecure-http"],
+	)
+	log.Info(
+		"verification-pg-image-repo",
+		"value",
+		c.GetVerificationPgImageRepo(),
+		"source",
+		c.flags.sources["verification-pg-image-repo"],
 	)
 }
 
